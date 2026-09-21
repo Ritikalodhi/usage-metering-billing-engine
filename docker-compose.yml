@@ -7,7 +7,7 @@ services:
       POSTGRES_PASSWORD: billing
       POSTGRES_DB: billing
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -20,6 +20,8 @@ services:
     build: .
     restart: unless-stopped
     env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://billing:billing@db:5432/billing
     depends_on:
       db:
         condition: service_healthy
