@@ -1,0 +1,20 @@
+run: docker compose up --build
+seed: docker compose exec app python scripts/seed.py
+test: docker compose exec app pytest
+base_url: http://localhost:8000
+
+endpoints:
+  - method: GET
+    path: /healthz
+  - method: POST
+    path: /v1/generate
+    auth: bearer
+    headers: ["Idempotency-Key"]
+  - method: GET
+    path: /v1/usage
+    auth: bearer
+  - method: POST
+    path: /v1/billing/checkout
+    auth: bearer
+  - method: POST
+    path: /webhooks/stripe
