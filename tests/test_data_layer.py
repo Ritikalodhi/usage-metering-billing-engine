@@ -7,7 +7,8 @@ import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
 
 from app.config.plans import FREE, PLANS, PRO, Plan
-from app.config.pricing import PRICING, price_tokens
+from app.config.pricing import PRICING
+from app.services.cost import price_tokens
 from app.db.models import (
     IdemState,
     IdempotencyKey,

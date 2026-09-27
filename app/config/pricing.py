@@ -13,25 +13,3 @@ class Pricing:
 
 
 PRICING = Pricing()
-
-
-def price_tokens(
-    input: int = 0,
-    cached_input: int = 0,
-    output: int = 0,
-    reasoning: int = 0,
-) -> dict[str, int]:
-    """Price token quantities. Reasoning is folded into the output bucket first.
-
-    Categories are priced separately and summed last:
-    in*300 + cached*30 + (out + reasoning)*1500
-    """
-    input_cost = input * PRICING.input
-    cached_input_cost = cached_input * PRICING.cached_input
-    output_cost = (output + reasoning) * PRICING.output
-    return {
-        "input": input_cost,
-        "cached_input": cached_input_cost,
-        "output": output_cost,
-        "total_micro_cents": input_cost + cached_input_cost + output_cost,
-    }
