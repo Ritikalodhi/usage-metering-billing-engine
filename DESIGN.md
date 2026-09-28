@@ -60,7 +60,11 @@ Correctness rests on the DB unique index `(tenant_id, key)`, not on application-
 
 Documented rule: **a request is allowed only if `used + requested <= limit`.** A request that would cross the limit is rejected *in full* — no partial metering. So at 999/1000, a 1-call request succeeds (→1000); the next returns 429. A request for 5 calls at 998 is rejected outright, and usage stays 998.
 
-The check and the insert happen in one transaction; the rollup is computed with `SELECT … FOR UPDATE` on the tenant row to serialize concurrent metering for the same tenant.
+The check and the insert happen in one transaction; the rollup is computed after taking `SELECT … FOR NO KEY UPDATE` on the tenant row to serialize concurrent metering for the same tenant (SQLAlchemy: `with_for_update(key_share=True)`).
+
+**Why `FOR NO KEY UPDATE` and not `FOR UPDATE` (decision record).** Step 1 of the metering path (`claim()`) inserts into `idempotency_keys`, which has a foreign key to `tenants`. Postgres takes an automatic `FOR KEY SHARE` lock on the referenced tenant row for that insert. Plain `FOR UPDATE` conflicts with `FOR KEY SHARE`, so two concurrent requests for the same tenant each hold a key-share lock and each wait to upgrade, which produces `DeadlockDetected`. This was reproduced in `test_concurrency_race_at_limit`. `FOR NO KEY UPDATE` is compatible with `FOR KEY SHARE` but still conflicts with itself, so concurrent metering for one tenant is still fully serialized. Rejected alternative: taking the tenant lock before `claim()`, which would force every replayed or duplicate request through the exclusive lock before it can short-circuit.
+
+Plan changes serialize with metering: a plain `UPDATE tenants SET plan_id=…` (the Phase 5 webhook) takes `FOR NO KEY UPDATE` itself, because `plan_id` is not a key column. A webhook plan flip therefore waits for an in-flight metering transaction, and the next metering transaction sees the new plan.
 
 | Condition | Status | Body |
 |---|---|---|
@@ -119,3 +123,5 @@ Stripe is the source of truth for payment state; the DB is a mirror updated only
 - Quota counts cached tokens at face value even though they cost less.
 - Over-quota requests are rejected, not billed as overage (stretch goal).
 - Idempotency keys are retained 30 days, then pruned; a retry after that would double-count.
+- Metering is judged against the plan row as of its own lock acquisition; a plan flip that commits after that point applies to the next request, not the one in flight.
+- The usage ledger records reasoning tokens under their own `reasoning` category; pricing folds them into the output rate. Quota counts all four token categories at face value.

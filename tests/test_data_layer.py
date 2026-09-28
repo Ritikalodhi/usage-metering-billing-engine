@@ -73,7 +73,7 @@ def test_db_models_and_constraints():
         test_tenant = Tenant(
             name=f"test-tenant-{uuid.uuid4().hex[:8]}",
             plan_id=free_plan.id,
-            api_key_hash=hashlib.sha256(b"test_key").hexdigest(),
+            api_key_hash=hashlib.sha256(uuid.uuid4().bytes).hexdigest(),
         )
         session.add(test_tenant)
         session.commit()
