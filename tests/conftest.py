@@ -4,7 +4,7 @@ import sqlalchemy as sa
 from app.db.models import Tenant
 from app.db.session import SessionLocal
 
-TEST_TENANT_PREFIXES = ("test-tenant-", "tenant-idem-", "tenant-meter-")
+TEST_TENANT_PREFIXES = ("test-tenant-", "tenant-idem-", "tenant-meter-", "tenant-api-")
 PROTECTED_TENANT_NAMES = {"seed-free", "seed-pro"}
 
 
