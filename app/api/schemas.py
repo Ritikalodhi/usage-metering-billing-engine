@@ -91,3 +91,11 @@ class UsageResponse(BaseModel):
             )
             values["cost_usd"] = str(dollars)
         return values
+
+
+# ── Phase 5A: POST /v1/billing/checkout ────────────────────────────────────────
+
+
+class CheckoutResponse(BaseModel):
+    url: str
+
