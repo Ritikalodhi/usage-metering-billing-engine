@@ -207,3 +207,35 @@ The full Docker suite passed twice with zero flakiness (6.53 s, 6.74 s).
 
 ## Phase 5: Stripe checkout and webhooks
 _(pending)_
+
+---
+
+## Phase 5B: Stripe Webhooks
+
+Requirements covered:
+- POST /webhooks/stripe
+- raw request body read before Stripe signature verification
+- invalid signatures return 400 with zero database writes
+- Stripe webhook signature verification using STRIPE_WEBHOOK_SECRET
+- database-level webhook event deduplication using ON CONFLICT
+- replayed events return 200 without repeating business logic
+- checkout.session.completed creates/updates the subscription and promotes the tenant to Pro
+- customer.subscription.updated synchronizes subscription state
+- out-of-order subscription.updated events do not overwrite newer state
+- customer.subscription.deleted cancels the subscription and reverts the tenant to Free
+- unknown event types are recorded and return 200 without changing subscription state
+- webhook event processing and subscription updates are atomic
+- processed_at is committed only after successful processing
+
+Verification:
+
+```text
+$ docker compose exec app pytest tests/test_webhooks.py -v
+8 passed
+Full Docker suite:
+$ docker compose exec app pytest -v
+49 passed, 1 warning in 8.48s
+
+Previous full-suite run:
+49 passed, 1 warning in 8.74s 
+```

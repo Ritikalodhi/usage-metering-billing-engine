@@ -31,3 +31,25 @@ AI-usage log. Tools: Claude (design, plan, prompt writing, review) and Cursor/An
 - Decision: keep `FOR NO KEY UPDATE`. It is compatible with the FK key-share lock, still serializes concurrent metering, and the concurrency test proves it. Updated DESIGN.md section 5 with the reasoning. (I first told myself a concurrent plan change would not be blocked by FOR NO KEY UPDATE; that was wrong, since a plain UPDATE of plan_id takes the same lock. Corrected in DESIGN.md.)
 - Cursor's test summaries repeatedly came from host Python (win32) instead of the container. I re-run everything with `docker compose exec app pytest` before committing.
 - Test-isolation issue also surfaced during Docker verification: `test_data_layer.py` used a fixed `sha256(b"test_key")` `api_key_hash` and tests shared the application database. The first run passed but the next run failed with a unique constraint violation. Fixed by using a random hash and adding `tests/conftest.py` cleanup for test-created tenants. Docker suite then passed twice consecutively with 19 passed each time, and the billing database returned to exactly 2 seed tenants.
+
+## Phase 3c: HTTP layer (POST /v1/generate)
+- AI implemented route handlers, auth dependency via Bearer token hash lookup, Pydantic schema validation (`extra="forbid"`), and global error handlers.
+- Error response sanitization: caught and ensured 500 errors return opaque `request_id` without leaking stack traces or internal configuration.
+- Verified idempotency replay over HTTP: duplicate request with same payload returns cached body and 200 without re-metering; payload mismatch returns 422.
+
+## Phase 4: Usage rollup (GET /v1/usage)
+- AI implemented `GET /v1/usage` aggregating current calendar-month usage directly from `usage_events`.
+- Strict boundary check verified: events from previous UTC calendar months are excluded from rollup calculations.
+- Plan isolation verified: Free and Pro tenants only see their respective limits and metrics.
+
+## Phase 5A: Stripe checkout (POST /v1/billing/checkout)
+- AI added Stripe checkout session generation with customer creation/lookup and metadata linking.
+- All Stripe API interactions mocked during testing to avoid external network calls.
+
+## Phase 5B: Stripe webhooks (POST /webhooks/stripe)
+- AI added `POST /webhooks/stripe` with signature verification, raw body reading, deduplication, and lifecycle handlers (`checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`).
+- **AI was wrong / Driver Syntax Error**: Initial raw SQL used `:payload::jsonb` for the webhook payload insert. The `psycopg` driver parsed `:payload:` as a named parameter marker conflicting with the PostgreSQL `::jsonb` type cast. Fixed by switching to standard SQL `CAST(:payload AS jsonb)`.
+- Verified security constraint: raw body is read before signature verification; signature validation failure returns 400 immediately with zero database interactions.
+- Verified atomic deduplication: `INSERT INTO webhook_events ... ON CONFLICT (stripe_event_id) DO NOTHING RETURNING stripe_event_id`. Replays return HTTP 200 with `{"status": "replay"}`.
+- Verified out-of-order event protection: incoming events with timestamps older than `last_event_at` are safely ignored for subscription updates while still logging the webhook event.
+- All 49 tests pass cleanly across two consecutive runs in Docker.
